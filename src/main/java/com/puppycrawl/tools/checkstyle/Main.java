@@ -36,6 +36,7 @@ import java.util.logging.Level;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
+import java.util.Locale;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -59,6 +60,10 @@ import picocli.CommandLine.ParseResult;
  * Wrapper command line program for the Checker.
  */
 public final class Main {
+
+	private static final String DEFAULT_CONFIG_NAME = "cs1331_checkstyle.xml";
+	private static final String JAVADOC_CONFIG_NAME = "cs1331_javadoc.xml";
+	private static final String ALL_CONFIG_NAME = "cs1331_all.xml";
 
     /**
      * A key pointing to the error counter
@@ -353,7 +358,7 @@ public final class Main {
         }
 
         final Configuration config = ConfigurationLoader.loadConfiguration(
-                options.configurationFile, new PropertiesExpander(props),
+        		options.configurationFile, new PropertiesExpander(props),
                 ignoredModulesOptions, multiThreadModeSettings);
 
         // create RootModule object and run it
@@ -580,7 +585,7 @@ public final class Main {
         private static final int DEFAULT_THREAD_COUNT = 1;
 
         /** Default distance between tab stops. */
-        private static final int DEFAULT_TAB_WIDTH = 8;
+        private static final int DEFAULT_TAB_WIDTH = 4;
 
         /** Name for the moduleConfig attribute 'tabWidth'. */
         private static final String ATTRIB_TAB_WIDTH_NAME = "tabWidth";
@@ -588,8 +593,9 @@ public final class Main {
         /** Default output format. */
         private static final OutputFormat DEFAULT_OUTPUT_FORMAT = OutputFormat.PLAIN;
 
-        /** Option name for output format. */
-        private static final String OUTPUT_FORMAT_OPTION = "-f";
+        /** Default configuration file to use */
+        private static final String DEFAULT_CONFIGURATION_FILE = Main.class.getClassLoader()
+        		.getResource(DEFAULT_CONFIG_NAME).toString();
 
         /** List of file to validate. */
         @Parameters(arity = "1..*", description = "One or more source files to verify")
@@ -597,68 +603,41 @@ public final class Main {
 
         /** Config file location. */
         @Option(names = "-c", description = "Sets the check configuration file to use.")
-        private String configurationFile;
+        private String configurationFile = DEFAULT_CONFIGURATION_FILE;
 
-        /** Output file location. */
-        @Option(names = "-o", description = "Sets the output file. Defaults to stdout")
         private Path outputPath;
 
-        /** Properties file location. */
-        @Option(names = "-p", description = "Loads the properties file")
         private File propertiesFile;
 
-        /** LineNo and columnNo for the suppression. */
-        @Option(names = "-s",
-                description = "Print xpath suppressions at the file's line and column position. "
-                        + "Argument is the line and column number (separated by a : ) in the file "
-                        + "that the suppression should be generated for")
         private String suppressionLineColumnNumber;
 
-        /** Tab character length.
-         *  Suppression: CanBeFinal - we use picocli and it use  reflection to manage such fields
-         * @noinspection CanBeFinal
-         */
-        @Option(names = "--tabWidth", description = "Sets the length of the tab character. "
-                + "Used only with \"-s\" option. Default value is ${DEFAULT-VALUE}")
         private int tabWidth = DEFAULT_TAB_WIDTH;
 
-        /** Switch whether to generate suppressions file or not. */
-        @Option(names = {"-g", "--generate-xpath-suppression"},
-                description = "Generates to output a suppression.xml to use to suppress all"
-                        + " violations from user's config")
         private boolean generateXpathSuppressionsFile;
 
-        /** Output format.
-         *  Suppression: CanBeFinal - we use picocli and it use  reflection to manage such fields
-         * @noinspection CanBeFinal
-         */
-        @Option(names = "-f", description = "Sets the output format. Valid values: "
-                + "${COMPLETION-CANDIDATES}. Defaults to ${DEFAULT-VALUE}")
         private OutputFormat format = DEFAULT_OUTPUT_FORMAT;
 
         /** Option that controls whether to print the AST of the file. */
-        @Option(names = {"-t", "--tree"},
-                description = "Print Abstract Syntax Tree(AST) of the file")
+        @Option(names = {"-t", "-T"},
+                description = "Print Abstract Syntax Tree (AST) of the file")
         private boolean printAst;
 
-        /** Option that controls whether to print the AST of the file including comments. */
-        @Option(names = {"-T", "--treeWithComments"},
-                description = "Print Abstract Syntax Tree(AST) of the file including comments")
         private boolean printAstWithComments;
 
-        /** Option that controls whether to print the parse tree of the javadoc comment. */
-        @Option(names = {"-j", "--javadocTree"},
-                description = "Print Parse tree of the Javadoc comment")
+        /** Option that controls whether checkstyle should run Javadocs (false by default). */
+        @Option(names = {"-j", "-J"},
+                description = "Run checkstyle with Javadocs instead of code style checking")
+        private boolean doJavadocs;
+
+        /** Option that indicates whether checkstyle should do Javadocs + code style */
+        @Option(names = {"-a", "-A"}, 
+        		description = "Run checkstyle with Javadocs and code style checking")
+        private boolean doAll;
+
         private boolean printJavadocTree;
 
-        /** Option that controls whether to print the full AST of the file. */
-        @Option(names = {"-J", "--treeWithJavadoc"},
-                description = "Print full Abstract Syntax Tree of the file")
         private boolean printTreeWithJavadoc;
 
-        /** Option that controls whether to print debug info. */
-        @Option(names = {"-d", "--debug"},
-                description = "Print all debug logging of CheckStyle utility")
         private boolean debug;
 
         /** Option that allows users to specify a list of paths to exclude.
@@ -673,29 +652,14 @@ public final class Main {
          *  Suppression: CanBeFinal - we use picocli and it use  reflection to manage such fields
          * @noinspection CanBeFinal
          */
-        @Option(names = {"-x", "--exclude-regexp"},
+        @Option(names = {"-x", "--exclude-regex"},
                 description = "Regular expression of directory to exclude from CheckStyle")
         private List<Pattern> excludeRegex = new ArrayList<>();
 
-        /** Switch whether to execute ignored modules or not. */
-        @Option(names = "--executeIgnoredModules",
-                description = "Allows ignored modules to be run.")
         private boolean executeIgnoredModules;
 
-        /** The checker threads number.
-         *  Suppression: CanBeFinal - we use picocli and it use  reflection to manage such fields
-         * @noinspection CanBeFinal
-         */
-        @Option(names = {"-C", "--checker-threads-number"}, description = "(experimental) The "
-                + "number of Checker threads (must be greater than zero)")
         private int checkerThreadsNumber = DEFAULT_THREAD_COUNT;
 
-        /** The tree walker threads number.
-         *  Suppression: CanBeFinal - we use picocli and it use  reflection to manage such fields
-         * @noinspection CanBeFinal
-         */
-        @Option(names = {"-W", "--tree-walker-threads-number"}, description = "(experimental) The "
-                + "number of TreeWalker threads (must be greater than zero)")
         private int treeWalkerThreadsNumber = DEFAULT_THREAD_COUNT;
 
         /**
@@ -719,32 +683,18 @@ public final class Main {
         // -@cs[CyclomaticComplexity] Breaking apart will damage encapsulation
         private List<String> validateCli(ParseResult parseResult, List<File> filesToProcess) {
             final List<String> result = new ArrayList<>();
-            final boolean hasConfigurationFile = configurationFile != null;
+            final boolean hasConfigurationFile = configurationFile != DEFAULT_CONFIGURATION_FILE;
             final boolean hasSuppressionLineColumnNumber = suppressionLineColumnNumber != null;
 
             if (filesToProcess.isEmpty()) {
                 result.add("Files to process must be specified, found 0.");
             }
             // ensure there is no conflicting options
-            else if (printAst || printAstWithComments || printJavadocTree || printTreeWithJavadoc) {
-                if (suppressionLineColumnNumber != null || configurationFile != null
-                        || propertiesFile != null || outputPath != null
-                        || parseResult.hasMatchedOption(OUTPUT_FORMAT_OPTION)) {
-                    result.add("Option '-t' cannot be used with other options.");
-                }
-                else if (filesToProcess.size() > 1) {
-                    result.add("Printing AST is allowed for only one file.");
-                }
+            else if (doAll && doJavadocs) {
+            	result.add("Cannot use -a and -j flags at the same time");
             }
-            else if (hasSuppressionLineColumnNumber) {
-                if (configurationFile != null || propertiesFile != null
-                        || outputPath != null
-                        || parseResult.hasMatchedOption(OUTPUT_FORMAT_OPTION)) {
-                    result.add("Option '-s' cannot be used with other options.");
-                }
-                else if (filesToProcess.size() > 1) {
-                    result.add("Printing xpath suppressions is allowed for only one file.");
-                }
+            else if ((doAll || doJavadocs) &&  hasConfigurationFile) {
+            	result.add("External configuration (-c) cannot be used with -a or -j flags");
             }
             else if (hasConfigurationFile) {
                 try {
@@ -768,8 +718,8 @@ public final class Main {
                     result.add("TreeWalker threads number must be greater than zero");
                 }
             }
-            else {
-                result.add("Must specify a config XML file.");
+            else if (doJavadocs) {
+            	configurationFile = JAVADOC_CONFIG_NAME;
             }
 
             return result;
